@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -1860,6 +1861,8 @@ func editHandler(res http.ResponseWriter, req *http.Request) {
 		// and correctly format for db storage. Essentially, we need
 		// fieldX.0: value1, fieldX.1: value2 => fieldX: []string{value1, value2}
 		fieldOrderValue := make(map[string]map[string][]string)
+		fieldOrderToSaveOrder := make(map[string][]int)
+
 		for k, v := range req.PostForm {
 			if strings.Contains(k, ".") {
 				fo := strings.Split(k, ".")
@@ -1869,7 +1872,14 @@ func editHandler(res http.ResponseWriter, req *http.Request) {
 				order := string(fo[1])
 				if len(fieldOrderValue[field]) == 0 {
 					fieldOrderValue[field] = make(map[string][]string)
+					fieldOrderToSaveOrder[field] = []int{}
 				}
+				orderInt, errConversion := strconv.Atoi(order)
+				if errConversion != nil {
+					continue
+				}
+
+				fieldOrderToSaveOrder[field] = append(fieldOrderToSaveOrder[field], orderInt)
 
 				// orderValue is 0:[?type=Thing&id=1]
 				orderValue := fieldOrderValue[field]
@@ -1879,14 +1889,14 @@ func editHandler(res http.ResponseWriter, req *http.Request) {
 				// discard the post form value with name.N
 				req.PostForm.Del(k)
 			}
-
 		}
 
 		// add/set the key & value to the post form in order
 		for f, ov := range fieldOrderValue {
-			for i := 0; i < len(ov); i++ {
-				position := fmt.Sprintf("%d", i)
-				fieldValue := ov[position]
+			sort.Ints(fieldOrderToSaveOrder[f])
+			for j := 0; j < len(fieldOrderToSaveOrder[f]); j++ {
+				fieldNo := fmt.Sprintf("%d", fieldOrderToSaveOrder[f][j])
+				fieldValue := ov[fieldNo]
 
 				if req.PostForm.Get(f) == "" {
 					for i, fv := range fieldValue {
